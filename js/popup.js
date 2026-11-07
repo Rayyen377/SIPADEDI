@@ -33,6 +33,8 @@
           '<input type="hidden" name="id">' +
           '<input type="hidden" name="tanggal">' +
           '<input type="hidden" name="slot">' +
+          '<input type="hidden" name="ganti_tgl">' +
+          '<input type="hidden" name="ganti_slot">' +
           '<button type="button" class="btn-o" data-batal>Batal</button>' +
           '<button type="submit" class="btn-f">Yakin</button>' +
         '</form>' +
@@ -44,6 +46,8 @@
     f.elements.id.value = d.id;
     f.elements.tanggal.value = d.tanggal;
     f.elements.slot.value = d.slot;
+    f.elements.ganti_tgl.value = d.gantiTgl || '';
+    f.elements.ganti_slot.value = d.gantiSlot || '';
 
     terakhirFokus = document.activeElement;
     document.body.style.overflow = 'hidden';
@@ -68,6 +72,12 @@
     const a = e.target.closest('a.slot.free[data-slot]');
     if (!a) return;
     e.preventDefault();
-    bukaKonfirmasi({ id: a.dataset.id, tanggal: a.dataset.tanggal, slot: a.dataset.slot });
+    bukaKonfirmasi({
+      id: a.dataset.id,
+      tanggal: a.dataset.tanggal,
+      slot: a.dataset.slot,
+      gantiTgl: a.dataset.gantiTgl || '',
+      gantiSlot: a.dataset.gantiSlot || ''
+    });
   });
 })();

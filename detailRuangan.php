@@ -21,6 +21,16 @@ function slotLewat($tanggal, $slot) {
     return strtotime($tanggal . ' ' . $m[1]) < time();
 }
 
+// Bangun URL halaman detail; parameter mode edit (ganti_tgl & ganti_slot) ikut terbawa
+function urlDetail($id, $tgl) {
+    $p = ['id' => $id, 'tanggal' => $tgl];
+    if (!empty($_GET['ganti_tgl']) && !empty($_GET['ganti_slot'])) {
+        $p['ganti_tgl']  = $_GET['ganti_tgl'];
+        $p['ganti_slot'] = $_GET['ganti_slot'];
+    }
+    return 'detailRuangan.php?' . http_build_query($p);
+}
+
 // ---------- Simpan booking (POST dari popup) ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['aksi'] ?? '') === 'booking') {
     $pid   = (int) ($_POST['id'] ?? 0);
@@ -51,7 +61,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['aksi'] ?? '') === 'booking
         }
 
         if ($ok) {
-            header('Location: bookingSaya.php?berhasil=1');
+            // Mode edit: hapus booking lama setelah yang baru berhasil disimpan
+            $hapus = -1; // -1 = data booking lama tidak sampai ke server
+            $gtgl  = trim($_POST['ganti_tgl']  ?? '');
+            $gslot = trim($_POST['ganti_slot'] ?? '');
+            if ($gtgl !== '' && $gslot !== ''
+                && !($gtgl === $ptgl && $gslot === $pslot)) {
+                $del = $koneksi->prepare("DELETE FROM ketersediaan WHERE id = ? AND tanggal = ? AND TRIM(slot) = ?");
+                $del->bind_param('iss', $pid, $gtgl, $gslot);
+                $del->execute();
+                $hapus = $del->affected_rows;
+            }
+            header('Location: bookingSaya.php?berhasil=1&hapus=' . $hapus);
             exit;
         }
     }
@@ -84,12 +105,13 @@ if (!$d || $d->format('Y-m-d') !== $tanggal) { $tanggal = $tglMin; }
 if ($tanggal < $tglMin) { $tanggal = $tglMin; }
 if ($tanggal > $tglMax) { $tanggal = $tglMax; }
 
+// ---------- Mode edit: booking lama yang akan diganti ----------
+$gantiTgl  = trim($_GET['ganti_tgl']  ?? '');
+$gantiSlot = trim($_GET['ganti_slot'] ?? '');
+$modeEdit  = $gantiTgl !== '' && $gantiSlot !== '';
+
 $prev = date('Y-m-d', strtotime($tanggal . ' -1 day'));
 $next = date('Y-m-d', strtotime($tanggal . ' +1 day'));
-
-function urlDetail($id, $tgl) {
-    return 'detailRuangan.php?' . http_build_query(['id' => $id, 'tanggal' => $tgl]);
-}
 
 // ---------- Ambil ketersediaan pada tanggal tsb ----------
 // Asumsi: kolom `id` di tabel ketersediaan = id fasilitas.
@@ -147,6 +169,7 @@ $aktif = hitungBookingAktif($koneksi);
         .datewrap{display:flex;align-items:center}
         .rows .row b{text-align:right}
         .chips:empty::after{content:"Belum ada data fasilitas";color:var(--ink-2);font-size:15px}
+        .edit-note{margin:0 0 14px;padding:12px 16px;border-radius:14px;border:1px solid var(--ok-line);background:var(--ok-bg);font-size:14px}
         @media (max-width:560px){
             .datepill{height:48px;font-size:15px}
             .datepill .ic{width:1.3em;height:1.3em}
@@ -191,7 +214,7 @@ $aktif = hitungBookingAktif($koneksi);
         <div class="wrap">
             <section class="view">
                 <div>
-                    <a class="back" href="dashboard.php"><svg class="ic o" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Kembali</span></a>
+                    <a class="back" href="<?= $modeEdit ? 'bookingSaya.php' : 'dashboard.php' ?>"><svg class="ic o" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Kembali</span></a>
                 </div>
 
                 <!-- ===== Detail ruangan (dari tabel fasilitas) ===== -->
@@ -216,7 +239,11 @@ $aktif = hitungBookingAktif($koneksi);
 
                 <!-- ===== Ajukan booking (dari tabel ketersediaan) ===== -->
                 <div class="panel book">
-                    <h3>Ajukan Booking</h3>
+                    <h3><?= $modeEdit ? 'Ubah Booking' : 'Ajukan Booking' ?></h3>
+
+                    <?php if ($modeEdit): ?>
+                        <p class="edit-note">Booking lama (<?= h(date('d/m/Y', strtotime($gantiTgl))) ?>, <?= h($gantiSlot) ?>) akan diganti dengan sesi baru yang kamu pilih.</p>
+                    <?php endif; ?>
 
                     <div class="datebar">
                         <?php if ($tanggal > $tglMin): ?>
@@ -227,6 +254,10 @@ $aktif = hitungBookingAktif($koneksi);
 
                         <form class="datewrap" method="GET" action="detailRuangan.php">
                             <input type="hidden" name="id" value="<?= $id ?>">
+                            <?php if ($modeEdit): ?>
+                                <input type="hidden" name="ganti_tgl" value="<?= h($gantiTgl) ?>">
+                                <input type="hidden" name="ganti_slot" value="<?= h($gantiSlot) ?>">
+                            <?php endif; ?>
                             <label class="datepill">
                                 <svg class="ic f" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="17.5" rx="3.5"/><rect x="6.5" y="1.8" width="2.2" height="4.6" rx="1.1"/><rect x="15.3" y="1.8" width="2.2" height="4.6" rx="1.1"/></svg>
                                 <span class="sr">Tanggal booking</span>
@@ -265,6 +296,7 @@ $aktif = hitungBookingAktif($koneksi);
                         ?>
                             <a class="slot free" style="--i:<?= $i ?>" href="<?= h($link) ?>"
                                data-id="<?= $id ?>" data-tanggal="<?= h($tanggal) ?>" data-slot="<?= h($slot) ?>"
+                               <?php if ($modeEdit): ?>data-ganti-tgl="<?= h($gantiTgl) ?>" data-ganti-slot="<?= h($gantiSlot) ?>"<?php endif; ?>
                                title="Tersedia"><?= h($slot) ?></a>
                         <?php endif; endforeach; ?>
                     </div>
@@ -273,6 +305,6 @@ $aktif = hitungBookingAktif($koneksi);
         </div>
     </main>
 </div>
-<script src="js/popup.js" defer></script>
+<script src="js/popup.js?v=<?= @filemtime(__DIR__ . '/js/popup.js') ?: time() ?>" defer></script>
 </body>
 </html>

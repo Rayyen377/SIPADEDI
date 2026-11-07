@@ -16,9 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['aksi'] ?? '') === 'batal')
     $slot    = $_POST['slot'] ?? '';
 
     if (sudahSelesai($tanggal, $slot)) {
-    header('Location: bookingSaya.php');
-    exit;
-}
+        header('Location: bookingSaya.php');
+        exit;
+    }
 
     $stmt = $koneksi->prepare("DELETE FROM ketersediaan WHERE id = ? AND tanggal = ? AND slot = ? AND status = '1'");
     $stmt->bind_param('iss', $id, $tanggal, $slot);
@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['aksi'] ?? '') === 'batal')
     exit;
 }
 
-// ---------- Ambil booking milik user (status = 'mine') ----------
-// Booking = baris di ketersediaan dengan status 'mine', digabung dengan data ruangan di fasilitas.
+// ---------- Ambil booking milik user (status = 1) ----------
+// Booking = baris di ketersediaan dengan status 1, digabung dengan data ruangan di fasilitas.
 $sql = "SELECT k.id, k.tanggal, k.slot, f.nama, f.lokasi, f.kategori, f.`desc` AS deskripsi
         FROM ketersediaan k
         JOIN fasilitas f ON f.id = k.id
@@ -134,10 +134,16 @@ $aktif  = count(array_filter($semua, fn($b) => !$b['selesai']));
                     </div>
                 <?php else: ?>
                     <?php foreach ($semua as $i => $b):
-    $tglTampil = date('d/m/Y', strtotime($b['tanggal']));
-    $linkEdit  = 'detailRuangan.php?' . http_build_query(['id' => $b['id'], 'tanggal' => $b['tanggal']]);
-?>
-                    
+                        $tglTampil = date('d/m/Y', strtotime($b['tanggal']));
+                        // Bawa slot lama (ganti_tgl & ganti_slot) supaya bisa dihapus saat booking baru tersimpan
+                        $linkEdit  = 'detailRuangan.php?' . http_build_query([
+                            'id'         => $b['id'],
+                            'tanggal'    => $b['tanggal'],
+                            'ganti_tgl'  => $b['tanggal'],
+                            'ganti_slot' => $b['slot'],
+                        ]);
+                    ?>
+
                     <article class="panel bk" style="--i:<?= $i ?>">
                         <div class="bk-img"><img src="<?= h($b['gambar']) ?>" alt="<?= h($b['nama']) ?>"></div>
                         <h3><?= h($b['nama']) ?><?php if ($b['selesai']): ?><span class="done-tag">Selesai</span><?php endif; ?></h3>
@@ -146,7 +152,7 @@ $aktif  = count(array_filter($semua, fn($b) => !$b['selesai']));
                         <div class="bk-a">
                             <?php if ($b['selesai']): ?>
                             <div class="pill c"><?= h($b['slot']) ?></div>
-                            
+
                             <?php else: ?><div class="pill"><svg class="ic f" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="17.5" rx="3.5"/><rect x="6.5" y="1.8" width="2.2" height="4.6" rx="1.1"/><rect x="15.3" y="1.8" width="2.2" height="4.6" rx="1.1"/></svg><span><?= h($tglTampil) ?></span><svg class="ic o" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="3.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg></div>
                             <div class="pill c"><?= h($b['slot']) ?></div>
                             <a class="btn-ok" href="<?= h($linkEdit) ?>">Edit Booking</a>
@@ -160,7 +166,7 @@ $aktif  = count(array_filter($semua, fn($b) => !$b['selesai']));
                             <?php endif; ?>
                         </div>
                     </article>
-                    <?php $i++; endforeach; ?>
+                    <?php endforeach; ?>
                 <?php endif; ?>
             </section>
         </div>
